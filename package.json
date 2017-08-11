@@ -1,0 +1,51 @@
+{
+  "name": "extractor",
+  "displayName": "extractor",
+  "description": "Extracts methods/functions",
+  "version": "0.0.1",
+  "publisher": "wix",
+  "engines": {
+    "vscode": "^1.12.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:extension.extractMethod"],
+  "main": "./out/src/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.extractMethod",
+        "title": "Extract Method"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "extension.extractMethod",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "node ./node_modules/vscode/bin/test"
+  },
+  "devDependencies": {
+    "@types/babel-generator": "*",
+    "@types/mocha": "^2.2.32",
+    "@types/node": "^6.0.40",
+    "@types/babel-types": "*",
+    "mocha": "^2.3.3",
+    "typescript": "^2.0.3",
+    "vscode": "^1.0.0"
+  },
+  "dependencies": {
+    "babel-core": "*",
+    "babel-generator": "^7.0.0-alpha.19",
+    "babel-template": "*",
+    "babel-types": "*",
+    "babylon": "^7.0.0-beta.19"
+  }
+}
