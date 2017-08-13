@@ -8,31 +8,61 @@ import {
   WorkspaceEdit,
   Position
 } from 'vscode';
-import { getBindings, extractMethod } from './parser';
+import {
+  getUnboundVariables,
+  extractMethod,
+  getNodeForPosition,
+  getInformationOnSubNode,
+  tweakLocation
+} from './parser';
 export function activate(context: ExtensionContext) {
   const disposable = commands.registerCommand('extension.extractMethod', async () => {
     try {
+      // modify range if need to trim
       const logicToExtract = window.activeTextEditor.document.getText(
         new Range(window.activeTextEditor.selection.start, window.activeTextEditor.selection.end)
       );
-      const bindings = getBindings(logicToExtract);
-      const functionType = await window.showQuickPick(['Class Method', 'Inline Method']);
+      const functionParams = getUnboundVariables(logicToExtract);
+      // const functionType = await window.showQuickPick([
+      //   'Class Method',
+      //   'Inline Function',
+      //   'Global Function'
+      // ]);
       const functionName = await window.showInputBox({
         prompt: 'Function Name',
         value: `extractedMethod`
       });
 
+      const { start, end } = tweakLocation(
+        window.activeTextEditor.selection.start,
+        window.activeTextEditor.selection.end,
+        logicToExtract
+      );
+      const logicNodeInformation = getInformationOnSubNode(
+        window.activeTextEditor.document.getText(),
+        start,
+        end,
+        functionParams
+      );
+      console.log(logicNodeInformation);
+      // const logicToExtractNode = getNodeForPosition(
+      //   window.activeTextEditor.document.getText(),
+      //   window.activeTextEditor.selection.start,
+      //   window.activeTextEditor.selection.end
+      // );
+
       await replaceText(
         new Range(window.activeTextEditor.selection.start, window.activeTextEditor.selection.end),
-        `this.${functionName}(${bindings.join(', ')})`
+        `this.${functionName}(${functionParams.join(', ')})`
       );
       const newSource = extractMethod(
         window.activeTextEditor.document.getText(),
         logicToExtract,
         functionName,
-        bindings
+        functionParams,
+        logicNodeInformation.shouldReturn,
+        logicNodeInformation.variableTypes
       );
-      console.log(newSource);
       replaceText(
         new Range(
           new Position(0, 0),
