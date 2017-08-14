@@ -24,7 +24,16 @@
         "mac": "cmd+alt+m",
         "when": "editorTextFocus"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.extractMethod",
+          "alt": "extension.extractMethod",
+          "when": "editorHasSelection"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",

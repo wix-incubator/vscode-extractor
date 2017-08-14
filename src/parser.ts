@@ -22,7 +22,7 @@ const PARSE_PLUGINS = [
   'functionSent'
 ];
 
-export function getInformationOnSubNode(source, start, end, variables) {
+export function getInformationOnSubNode(source, start, end, params) {
   let pathToInvestigate;
   const wholeAST = parse(source, {
     sourceType: 'module',
@@ -46,15 +46,43 @@ export function getInformationOnSubNode(source, start, end, variables) {
     return;
   }
   return {
-    shouldReturn: shouldAddReturnStatement(pathToInvestigate),
-    variableTypes: getVariableTypes(variables, wholeAST)
+    shouldAddReturnStatement: shouldAddReturnStatement(pathToInvestigate),
+    paramTypes: getParamTypes(params, wholeAST)
   };
 }
 
-export function tweakLocation(start, end, text) {
-  const tweakedStart = {_line: start._line + 1, _character: start._character + (text.length - text.trimLeft().length)}
-  const tweakedEnd = {_line: end._line + 1, _character: end._character - (text.length - text.trimRight().length)}
-  // prettify this :)
+export function normalizeSelectedTextLocation(start, end, text) {
+  const tweakedStart = {
+    _line: start._line + 1,
+    _character: start._character + (text.length - text.trimLeft().length)
+  };
+  const tweakedEnd = { _line: end._line + 1, _character: end._character };
+  if (tweakedEnd._character > 0) {
+    tweakedEnd._character -= text.length - text.trimRight().length;
+  }
+  const splittedText = text.split('\n');
+  for (let i = 0; i < splittedText.length; i++) {
+    if (splittedText[i].trim() === '') {
+      tweakedStart._line++;
+    } else {
+      break;
+    }
+  }
+  for (let i = splittedText.length - 1; i > 0; i--) {
+    if (splittedText[i].trim() === '') {
+      tweakedEnd._line--;
+    } else {
+      break;
+    }
+  }
+  if (tweakedEnd._character <= 0) {
+    const trimmedRightSplittedText = text.trimRight().split('\n');
+    tweakedEnd._character =
+      trimmedRightSplittedText.slice(-1)[0].length +
+      (trimmedRightSplittedText.length === 1 ? tweakedStart._character : 0);
+  }
+
+  // prettify this :) in fact, prettify this entire function
   if (text.trimRight().split('').splice(-1)[0] === ';') {
     tweakedEnd._character--;
   }
@@ -63,19 +91,16 @@ export function tweakLocation(start, end, text) {
 
 function shouldAddReturnStatement(path) {
   return (
-    path &&
-    (t.isVariableDeclarator(path.parent) ||
-      t.isIfStatement(path.parent) ||
-      t.isLogicalExpression(path.parent))
+    path && (t.isVariableDeclarator(path.parent) || t.isIfStatement(path.parent) || t.isLogicalExpression(path.parent))
   );
 }
 
-function getVariableTypes(variables, ast) {
+function getParamTypes(params, ast) {
   const variableTypes = {};
   traverse(ast, {
     Identifier(path) {
-      if (variables.indexOf(path.node.name) > -1 && path.node.typeAnnotation) {
-        variableTypes[path.node.name] = path.node.typeAnnotation
+      if (params.indexOf(path.node.name) > -1 && path.node.typeAnnotation) {
+        variableTypes[path.node.name] = path.node.typeAnnotation;
       }
     }
   });
@@ -145,14 +170,7 @@ export function getUnboundVariables(source) {
   return Object.keys(identifiers);
 }
 
-export function extractMethod(
-  source,
-  extractedLogic,
-  functionName,
-  params,
-  shouldReturn,
-  paramTypes
-) {
+export function extractMethod(source, extractedLogic, functionName, params, shouldReturn, paramTypes) {
   let root;
   let logicAST = template(extractedLogic)();
   const visitor = {
@@ -184,7 +202,7 @@ function compileParams(params, paramTypes) {
   return params.map(param => {
     const identifier = t.identifier(param);
     if (paramTypes && paramTypes[param]) {
-      identifier.typeAnnotation = paramTypes[param]
+      identifier.typeAnnotation = paramTypes[param];
     }
     return identifier;
   });
