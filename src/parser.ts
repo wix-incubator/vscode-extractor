@@ -3,6 +3,13 @@ import * as t from 'babel-types';
 import { parse } from 'babylon';
 import * as template from 'babel-template';
 import generate from 'babel-generator';
+import { TextEdit, window, workspace, Range, Position, WorkspaceEdit } from 'vscode';
+
+export const SCOPE_TYPES = {
+  CLASS_METHOD: 'Class Method',
+  INLINE_FUNCTION: 'Inline Function',
+  GLOBAL_FUNCTION: 'Global Function'
+};
 
 const PARSE_PLUGINS = [
   'typescript',
@@ -21,14 +28,23 @@ const PARSE_PLUGINS = [
   'functionBind',
   'functionSent'
 ];
-
-export function getInformationOnSubNode(source, start, end, params) {
-  let pathToInvestigate;
-  const wholeAST = parse(source, {
+export function getAST(source) {
+  return parse(source, {
     sourceType: 'module',
     plugins: PARSE_PLUGINS
   });
-  traverse(wholeAST, {
+}
+
+export function getInformationOnSubNode(subNode, sourceAST, functionParams) {
+  return {
+    shouldAddReturnStatement: shouldAddReturnStatement(subNode),
+    paramTypes: getParamTypes(functionParams, sourceAST)
+  };
+}
+
+export function findSubNodeByLocation(ast, start, end, cb?) {
+  let subNodePath;
+  traverse(ast, {
     enter(path) {
       const loc = path.node.loc;
       if (
@@ -38,17 +54,12 @@ export function getInformationOnSubNode(source, start, end, params) {
         loc.end.line === end._line &&
         loc.end.column === end._character
       ) {
-        pathToInvestigate = path;
+        subNodePath = path;
+        cb && cb(path);
       }
     }
   });
-  if (!pathToInvestigate) {
-    return;
-  }
-  return {
-    shouldAddReturnStatement: shouldAddReturnStatement(pathToInvestigate),
-    paramTypes: getParamTypes(params, wholeAST)
-  };
+  return subNodePath;
 }
 
 export function normalizeSelectedTextLocation(start, end, text) {
@@ -82,8 +93,7 @@ export function normalizeSelectedTextLocation(start, end, text) {
       (trimmedRightSplittedText.length === 1 ? tweakedStart._character : 0);
   }
 
-  // prettify this :) in fact, prettify this entire function
-  if (text.trimRight().split('').splice(-1)[0] === ';') {
+  if (text.trimRight().slice(-1) === ';') {
     tweakedEnd._character--;
   }
   return { start: tweakedStart, end: tweakedEnd };
@@ -170,32 +180,58 @@ export function getUnboundVariables(source) {
   return Object.keys(identifiers);
 }
 
-export function extractMethod(source, extractedLogic, functionName, params, shouldReturn, paramTypes) {
-  let root;
-  let logicAST = template(extractedLogic)();
-  const visitor = {
-    ClassDeclaration(path) {
-      logicAST = shouldReturn ? t.returnStatement(logicAST.expression) : logicAST;
-      path
-        .get('body')
-        .pushContainer(
-          'body',
-          t.classMethod(
-            'method',
-            t.identifier(functionName),
-            compileParams(params, paramTypes),
-            t.blockStatement([logicAST])
-          )
-        );
-    }
-  };
+export async function extractMethod(
+  sourceAST,
+  extractedLogic,
+  start,
+  end,
+  functionName,
+  functionParams,
+  scopeType,
+  shouldAddReturnStatement,
+  paramTypes
+) {
+  findSubNodeByLocation(sourceAST, start, end, path => {
+    const parentPath = findParentByScopeType(path, scopeType);
+    const logicAST = shouldAddReturnStatement
+      ? t.returnStatement(template(extractedLogic)().expression)
+      : template(extractedLogic)();
 
-  const ast = parse(source, {
-    sourceType: 'module',
-    plugins: PARSE_PLUGINS
+    parentPath
+      .get('body')
+      .pushContainer(
+        'body',
+        t.classMethod(
+          'method',
+          t.identifier(functionName),
+          compileParams(functionParams, paramTypes),
+          t.blockStatement([logicAST])
+        )
+      );
   });
-  traverse(ast, visitor);
-  return generate(ast).code;
+  // selection has changed so saving the original selection
+  const origStart = new Position(
+    window.activeTextEditor.selection.start.line,
+    window.activeTextEditor.selection.start.character
+  );
+  const origEnd = new Position(
+    window.activeTextEditor.selection.end.line,
+    window.activeTextEditor.selection.end.character
+  );
+  const newSource = generate(sourceAST).code;
+  await replaceCurrentEditorContent(newSource);
+  await replaceSelectedTextWithFunctionCall(origStart, origEnd, functionName, functionParams, scopeType);
+  // return replaceCurrentEditorContent(replacedSource);
+}
+
+function findParentByScopeType(path, scopeType) {
+  if (!path) {
+    return;
+  }
+  if (scopeType === SCOPE_TYPES.CLASS_METHOD && t.isClassDeclaration(path.node)) {
+    return path;
+  }
+  return findParentByScopeType(path.parentPath, scopeType);
 }
 
 function compileParams(params, paramTypes) {
@@ -206,4 +242,40 @@ function compileParams(params, paramTypes) {
     }
     return identifier;
   });
+}
+
+function replaceText(range, text) {
+  const edit = new TextEdit(range, text);
+  const workspaceEdit = new WorkspaceEdit();
+  workspaceEdit.set(window.activeTextEditor.document.uri, [edit]);
+  return workspace.applyEdit(workspaceEdit);
+}
+
+function replaceSelectedTextWithFunctionCall(start, end, functionName, functionParams, scopeType) {
+  // const splittedSource = source.split('\n');
+  // const x = [
+  //   ...splittedSource.slice(0, start._line - 1),
+  //   splittedSource[start._line - 1].slice(0, start._character),
+  //   `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})`,
+  //   splittedSource[end._line - 1].slice(end._character),
+  //   ...splittedSource.slice(end._line)
+  // ];
+  // return x.join('\n');
+  // return (
+  //   source.slice(0, start) +
+  //   `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})` +
+  //   source.slice(end)
+  // );
+  // start.line++;
+  return replaceText(
+    new Range(start, end),
+    `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')});`
+  );
+}
+
+function replaceCurrentEditorContent(newSource) {
+  return replaceText(
+    new Range(new Position(0, 0), new Position(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)),
+    newSource
+  );
 }

@@ -1,0 +1,4 @@
+- support typescript/flow config/plugin
+- global functions
+- inline functions
+- clean code
