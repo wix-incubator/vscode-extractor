@@ -2,3 +2,4 @@
 - global functions
 - inline functions
 - clean code
+- handle ; at the end of the inserted call expression

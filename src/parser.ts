@@ -196,7 +196,20 @@ export async function extractMethod(
     const logicAST = shouldAddReturnStatement
       ? t.returnStatement(template(extractedLogic)().expression)
       : template(extractedLogic)();
+    const functionCallAST = template(
+      `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})`
+    )();
 
+    createFunctionInParentByScopeType(parentPath, scopeType, logicAST, functionName, functionParams, paramTypes);
+    path.replaceWith(functionCallAST);
+  });
+
+  const newSource = generate(sourceAST).code;
+  await replaceCurrentEditorContent(newSource);
+}
+
+function createFunctionInParentByScopeType(parentPath, scopeType, logicAST, functionName, functionParams, paramTypes) {
+  if (scopeType === SCOPE_TYPES.CLASS_METHOD) {
     parentPath
       .get('body')
       .pushContainer(
@@ -208,29 +221,37 @@ export async function extractMethod(
           t.blockStatement([logicAST])
         )
       );
-  });
-  // selection has changed so saving the original selection
-  const origStart = new Position(
-    window.activeTextEditor.selection.start.line,
-    window.activeTextEditor.selection.start.character
-  );
-  const origEnd = new Position(
-    window.activeTextEditor.selection.end.line,
-    window.activeTextEditor.selection.end.character
-  );
-  const newSource = generate(sourceAST).code;
-  await replaceCurrentEditorContent(newSource);
-  await replaceSelectedTextWithFunctionCall(origStart, origEnd, functionName, functionParams, scopeType);
-  // return replaceCurrentEditorContent(replacedSource);
+  } else {
+    let nodeToPushTo;
+    if (Array.isArray(parentPath.node.body)) {
+      nodeToPushTo = parentPath.node.body;
+    } else if (parentPath.node.body && parentPath.node.body.body && Array.isArray(parentPath.node.body.body)) {
+      nodeToPushTo = parentPath.node.body.body;
+    }
+    nodeToPushTo.push(
+      t.functionDeclaration(
+        t.identifier(functionName),
+        compileParams(functionParams, paramTypes),
+        t.blockStatement([logicAST])
+      )
+    );
+  }
 }
 
 function findParentByScopeType(path, scopeType) {
   if (!path) {
     return;
   }
+  if (scopeType === SCOPE_TYPES.INLINE_FUNCTION && (t.isFunction(path.parentPath) || !path.parentPath)) {
+    return path.parentPath;
+  }
   if (scopeType === SCOPE_TYPES.CLASS_METHOD && t.isClassDeclaration(path.node)) {
     return path;
   }
+  if (scopeType === SCOPE_TYPES.GLOBAL_FUNCTION && !path.parentPath) {
+    return path;
+  }
+
   return findParentByScopeType(path.parentPath, scopeType);
 }
 
@@ -249,28 +270,6 @@ function replaceText(range, text) {
   const workspaceEdit = new WorkspaceEdit();
   workspaceEdit.set(window.activeTextEditor.document.uri, [edit]);
   return workspace.applyEdit(workspaceEdit);
-}
-
-function replaceSelectedTextWithFunctionCall(start, end, functionName, functionParams, scopeType) {
-  // const splittedSource = source.split('\n');
-  // const x = [
-  //   ...splittedSource.slice(0, start._line - 1),
-  //   splittedSource[start._line - 1].slice(0, start._character),
-  //   `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})`,
-  //   splittedSource[end._line - 1].slice(end._character),
-  //   ...splittedSource.slice(end._line)
-  // ];
-  // return x.join('\n');
-  // return (
-  //   source.slice(0, start) +
-  //   `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})` +
-  //   source.slice(end)
-  // );
-  // start.line++;
-  return replaceText(
-    new Range(start, end),
-    `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')});`
-  );
 }
 
 function replaceCurrentEditorContent(newSource) {
