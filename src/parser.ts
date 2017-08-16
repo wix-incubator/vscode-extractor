@@ -12,9 +12,9 @@ export const SCOPE_TYPES = {
 };
 
 const PARSE_PLUGINS = [
-  'typescript',
+  // 'typescript',
   'jsx',
-  // 'flow',
+  'flow',
   'asyncFunctions',
   'classConstructorCall',
   'doExpressions',
@@ -35,15 +35,15 @@ export function getAST(source) {
   });
 }
 
-export function getInformationOnSubNode(subNode, sourceAST, functionParams) {
+export function getInformationOnSubNode(subNodes, sourceAST, functionParams) {
   return {
-    shouldAddReturnStatement: shouldAddReturnStatement(subNode),
+    shouldAddReturnStatement: shouldAddReturnStatement(subNodes),
     paramTypes: getParamTypes(functionParams, sourceAST)
   };
 }
 
 export function findSubNodeByLocation(ast, start, end, cb?) {
-  let subNodePath;
+  let subNodePaths = [];
   traverse(ast, {
     enter(path) {
       const loc = path.node.loc;
@@ -54,12 +54,20 @@ export function findSubNodeByLocation(ast, start, end, cb?) {
         loc.end.line === end._line &&
         loc.end.column === end._character
       ) {
-        subNodePath = path;
-        cb && cb(path);
+        subNodePaths.push(path);
+      } else if (loc.start.line === start._line && loc.start.column === start._character) {
+        for (let i = path.key; i < path.container.length; i++) {
+          const siblingPath = path.getSibling(i);
+          const loc = siblingPath.node.loc;
+          if (loc.end.line < end._line || (loc.end.line === end._line && loc.end.column <= end._character + 1)) {
+            subNodePaths.push(siblingPath);
+          }
+        }
       }
     }
   });
-  return subNodePath;
+  cb && cb(subNodePaths);
+  return subNodePaths;
 }
 
 export function normalizeSelectedTextLocation(start, end, text) {
@@ -99,7 +107,11 @@ export function normalizeSelectedTextLocation(start, end, text) {
   return { start: tweakedStart, end: tweakedEnd };
 }
 
-function shouldAddReturnStatement(path) {
+function shouldAddReturnStatement(paths) {
+  if (paths.length > 1) {
+    return false;
+  }
+  const path = paths[0];
   return (
     path && (t.isVariableDeclarator(path.parent) || t.isIfStatement(path.parent) || t.isLogicalExpression(path.parent))
   );
@@ -115,47 +127,6 @@ function getParamTypes(params, ast) {
     }
   });
   return variableTypes;
-}
-
-// deprecated
-export function getNodeForPosition(source, start, end) {
-  const node = parse(source, {
-    sourceType: 'module',
-    plugins: PARSE_PLUGINS
-  });
-  const finalResult = findNodeWithLocation(node, start, end);
-  return finalResult;
-
-  function findNodeWithLocation(node, start, end) {
-    const properties = Object.keys(node);
-    let nodeWithLocation;
-    for (let i = 0; i < properties.length; i++) {
-      const property = properties[i];
-      if (node.hasOwnProperty(property) && isNode(node[property])) {
-        const loc = node[property].loc;
-        if (
-          loc &&
-          loc.start.line === start._line + 1 &&
-          loc.start.column === start._character &&
-          loc.end.line === end._line + 1 &&
-          loc.end.column === end._character - 1
-        ) {
-          return node[property];
-        }
-        if (!nodeWithLocation) {
-          nodeWithLocation = findNodeWithLocation(node[property], start, end);
-        }
-      }
-    }
-    return nodeWithLocation;
-  }
-  function isNode(node) {
-    return (
-      node &&
-      (node.__proto__.constructor.name === 'Node' ||
-        (Array.isArray(node) && node.length && node[0].__proto__.constructor.name === 'Node'))
-    );
-  }
 }
 
 export function getUnboundVariables(source) {
@@ -180,6 +151,10 @@ export function getUnboundVariables(source) {
   return Object.keys(identifiers);
 }
 
+function generateTemplate(code) {
+  return template(code, { plugins: PARSE_PLUGINS });
+}
+
 export async function extractMethod(
   sourceAST,
   extractedLogic,
@@ -191,17 +166,18 @@ export async function extractMethod(
   shouldAddReturnStatement,
   paramTypes
 ) {
-  findSubNodeByLocation(sourceAST, start, end, path => {
-    const parentPath = findParentByScopeType(path, scopeType);
+  findSubNodeByLocation(sourceAST, start, end, paths => {
+    const parentPath = findParentByScopeType(paths[0], scopeType);
     const logicAST = shouldAddReturnStatement
-      ? t.returnStatement(template(extractedLogic)().expression)
-      : template(extractedLogic)();
-    const functionCallAST = template(
+      ? t.returnStatement(generateTemplate(extractedLogic)().expression)
+      : generateTemplate(extractedLogic)();
+    const functionCallAST = generateTemplate(
       `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})`
     )();
 
     createFunctionInParentByScopeType(parentPath, scopeType, logicAST, functionName, functionParams, paramTypes);
-    path.replaceWith(functionCallAST);
+    paths.slice(1).forEach(path => path.remove());
+    paths[0].replaceWith(functionCallAST);
   });
 
   const newSource = generate(sourceAST).code;
@@ -209,32 +185,36 @@ export async function extractMethod(
 }
 
 function createFunctionInParentByScopeType(parentPath, scopeType, logicAST, functionName, functionParams, paramTypes) {
-  if (scopeType === SCOPE_TYPES.CLASS_METHOD) {
-    parentPath
-      .get('body')
-      .pushContainer(
-        'body',
-        t.classMethod(
-          'method',
+  try {
+    if (scopeType === SCOPE_TYPES.CLASS_METHOD) {
+      parentPath
+        .get('body')
+        .pushContainer(
+          'body',
+          t.classMethod(
+            'method',
+            t.identifier(functionName),
+            compileParams(functionParams, paramTypes),
+            t.blockStatement(Array.isArray(logicAST) ? logicAST : [logicAST])
+          )
+        );
+    } else {
+      let nodeToPushTo;
+      if (Array.isArray(parentPath.node.body)) {
+        nodeToPushTo = parentPath.node.body;
+      } else if (parentPath.node.body && parentPath.node.body.body && Array.isArray(parentPath.node.body.body)) {
+        nodeToPushTo = parentPath.node.body.body;
+      }
+      nodeToPushTo.push(
+        t.functionDeclaration(
           t.identifier(functionName),
           compileParams(functionParams, paramTypes),
-          t.blockStatement([logicAST])
+          t.blockStatement(Array.isArray(logicAST) ? logicAST : [logicAST])
         )
       );
-  } else {
-    let nodeToPushTo;
-    if (Array.isArray(parentPath.node.body)) {
-      nodeToPushTo = parentPath.node.body;
-    } else if (parentPath.node.body && parentPath.node.body.body && Array.isArray(parentPath.node.body.body)) {
-      nodeToPushTo = parentPath.node.body.body;
     }
-    nodeToPushTo.push(
-      t.functionDeclaration(
-        t.identifier(functionName),
-        compileParams(functionParams, paramTypes),
-        t.blockStatement([logicAST])
-      )
-    );
+  } catch (e) {
+    console.log(e);
   }
 }
 

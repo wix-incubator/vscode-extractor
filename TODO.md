@@ -1,5 +1,4 @@
 - support typescript/flow config/plugin
-- global functions
-- inline functions
 - clean code
-- handle ; at the end of the inserted call expression
+- add error message: Selected block should represent set of statements or an expression
+- babel template doesnt support typescript

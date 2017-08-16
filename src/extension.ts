@@ -2,7 +2,6 @@ import { window, ExtensionContext, commands, Range, TextEdit, workspace, Workspa
 import {
   getUnboundVariables,
   extractMethod,
-  getNodeForPosition,
   getInformationOnSubNode,
   normalizeSelectedTextLocation,
   SCOPE_TYPES,
@@ -30,8 +29,8 @@ export function activate(context: ExtensionContext) {
         selectedText
       );
       const sourceAST = getAST(window.activeTextEditor.document.getText());
-      const subNode = findSubNodeByLocation(sourceAST, start, end);
-      const { shouldAddReturnStatement, paramTypes } = getInformationOnSubNode(subNode, sourceAST, functionParams);
+      const subNodes = findSubNodeByLocation(sourceAST, start, end);
+      const { shouldAddReturnStatement, paramTypes } = getInformationOnSubNode(subNodes, sourceAST, functionParams);
 
       const newSource = extractMethod(
         sourceAST,
