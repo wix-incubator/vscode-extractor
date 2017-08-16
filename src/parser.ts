@@ -44,23 +44,21 @@ export function getInformationOnSubNode(subNodes, sourceAST, functionParams) {
 
 export function findSubNodeByLocation(ast, start, end, cb?) {
   let subNodePaths = [];
+  let found = false;
   traverse(ast, {
     enter(path) {
       const loc = path.node.loc;
-      if (
-        loc &&
-        loc.start.line === start._line &&
-        loc.start.column === start._character &&
-        loc.end.line === end._line &&
-        loc.end.column === end._character
-      ) {
-        subNodePaths.push(path);
-      } else if (loc.start.line === start._line && loc.start.column === start._character) {
-        for (let i = path.key; i < path.container.length; i++) {
-          const siblingPath = path.getSibling(i);
-          const loc = siblingPath.node.loc;
-          if (loc.end.line < end._line || (loc.end.line === end._line && loc.end.column <= end._character + 1)) {
-            subNodePaths.push(siblingPath);
+      if (!found && loc.start.line === start._line && loc.start.column === start._character) {
+        found = true;
+        if (!path.inList && (loc.end.line === end._line && loc.end.column <= end._character + 1)) {
+          subNodePaths.push(path);
+        } else {
+          for (let i = path.key; i < path.container.length; i++) {
+            const siblingPath = path.getSibling(i);
+            const loc = siblingPath.node.loc;
+            if (loc.end.line < end._line || (loc.end.line === end._line && loc.end.column <= end._character + 1)) {
+              subNodePaths.push(siblingPath);
+            }
           }
         }
       }
