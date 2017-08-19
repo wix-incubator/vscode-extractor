@@ -4,6 +4,8 @@ Adds support for "extract to method" to VSCode.
 
 ![Example Image](https://file-zvwanozdyl.now.sh/extract.gif)
 
+## NOTE: This extension is in a WIP state
+
 ## Features
 
 - Extract to Class Method
@@ -20,6 +22,6 @@ Adds support for "extract to method" to VSCode.
 ## Unknown Issues
 - Quite a bit (probably)
 
-### 1.0.0
+### 0.1.0
 
 Initial Release
