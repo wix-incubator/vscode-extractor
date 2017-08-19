@@ -2,7 +2,7 @@
   "name": "extractor",
   "displayName": "extractor",
   "description": "Extracts methods/functions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "wix",
   "engines": {
     "vscode": "^1.12.0"
@@ -16,24 +16,7 @@
         "command": "extension.extractMethod",
         "title": "Extract Method"
       }
-    ],
-    "keybindings": [
-      {
-        "command": "extension.extractMethod",
-        "key": "ctrl+alt+m",
-        "mac": "cmd+alt+m",
-        "when": "editorTextFocus"
-      }
-    ],
-    "menus": {
-      "editor/context": [
-        {
-          "command": "extension.extractMethod",
-          "alt": "extension.extractMethod",
-          "when": "editorHasSelection"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",

@@ -14,6 +14,10 @@ Adds support for "extract to method" to VSCode.
 - Detects which extraction strategy is relevant to the selected code
 - Detects external parameters *and their types*
 
+## How to Use
+
+Select some text and press `cmd+.`
+
 ## Known Issues
 
 - Typescript breaks on extraction of code with types. Waiting for babel to separate Flow from the core package in order to support Typescript better.
