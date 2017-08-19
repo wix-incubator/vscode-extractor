@@ -6,7 +6,8 @@ import {
   normalizeSelectedTextLocation,
   SCOPE_TYPES,
   findSubNodeByLocation,
-  getAST
+  getAST,
+  getScopeTypeByPath
 } from './parser';
 
 export function activate(context: ExtensionContext) {
@@ -14,15 +15,6 @@ export function activate(context: ExtensionContext) {
     try {
       // modify range if need to trim
       const selectedText = getSelectedText();
-      const functionParams = getUnboundVariables(selectedText);
-      const scopeType = await getScopeType();
-      if (!scopeType) {
-        return;
-      }
-      const functionName = await getFunctionName();
-      if (!functionName) {
-        return;
-      }
       const { start, end } = normalizeSelectedTextLocation(
         window.activeTextEditor.selection.start,
         window.activeTextEditor.selection.end,
@@ -30,6 +22,15 @@ export function activate(context: ExtensionContext) {
       );
       const sourceAST = getAST(window.activeTextEditor.document.getText());
       const subNodes = findSubNodeByLocation(sourceAST, start, end);
+      const functionParams = getUnboundVariables(selectedText);
+      const scopeType = await getScopeType(subNodes[0]);
+      if (!scopeType) {
+        return;
+      }
+      const functionName = await getFunctionName();
+      if (!functionName) {
+        return;
+      }
       const { shouldAddReturnStatement, paramTypes } = getInformationOnSubNode(subNodes, sourceAST, functionParams);
 
       const newSource = extractMethod(
@@ -44,7 +45,7 @@ export function activate(context: ExtensionContext) {
         paramTypes
       );
     } catch (e) {
-      window.showWarningMessage(e.toString());
+      window.showWarningMessage('Selected block should represent set of statements or an expression');
     }
   });
 
@@ -57,8 +58,9 @@ function getSelectedText() {
   );
 }
 
-function getScopeType() {
-  return window.showQuickPick(Object.keys(SCOPE_TYPES).map(scopeKey => SCOPE_TYPES[scopeKey]));
+function getScopeType(path) {
+  const scopeTypes: string[] = Array.from(getScopeTypeByPath(path));
+  return window.showQuickPick(scopeTypes.sort());
 }
 
 function getFunctionName() {

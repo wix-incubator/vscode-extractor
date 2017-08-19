@@ -49,10 +49,13 @@ export function findSubNodeByLocation(ast, start, end, cb?) {
     enter(path) {
       const loc = path.node.loc;
       if (!found && loc.start.line === start._line && loc.start.column === start._character) {
-        found = true;
-        if (!path.inList && (loc.end.line === end._line && loc.end.column <= end._character + 1)) {
-          subNodePaths.push(path);
+        if (!path.inList) {
+          if (loc.end.line === end._line && loc.end.column <= end._character + 1) {
+            found = true;
+            subNodePaths.push(path);
+          }
         } else {
+          found = true;
           for (let i = path.key; i < path.container.length; i++) {
             const siblingPath = path.getSibling(i);
             const loc = siblingPath.node.loc;
@@ -64,6 +67,7 @@ export function findSubNodeByLocation(ast, start, end, cb?) {
       }
     }
   });
+  // refactor
   cb && cb(subNodePaths);
   return subNodePaths;
 }
@@ -111,7 +115,16 @@ function shouldAddReturnStatement(paths) {
   }
   const path = paths[0];
   return (
-    path && (t.isVariableDeclarator(path.parent) || t.isIfStatement(path.parent) || t.isLogicalExpression(path.parent))
+    path &&
+    (t.isVariableDeclarator(path.parent) ||
+      t.isIfStatement(path.parent) ||
+      t.isLogicalExpression(path.parent) ||
+      t.isFunction(path) ||
+      t.isArrowFunctionExpression(path.parent) ||
+      t.isConditionalExpression(path.parent) ||
+      t.isLabeledStatement(path.parent) ||
+      t.isObjectProperty(path.parent) ||
+      path.listKey === 'arguments')
   );
 }
 
@@ -135,7 +148,12 @@ export function getUnboundVariables(source) {
       root = path;
     },
     Identifier(path) {
-      if (!root.scope.bindings[path.node.name] && !t.isMemberExpression(path.parent)) {
+      if (
+        !root.scope.bindings[path.node.name] &&
+        !t.isMemberExpression(path.parent) &&
+        !t.isObjectProperty(path.parent) &&
+        !t.isLabeledStatement(path.parent)
+      ) {
         identifiers[path.node.name] = true;
       }
     }
@@ -166,9 +184,7 @@ export async function extractMethod(
 ) {
   findSubNodeByLocation(sourceAST, start, end, paths => {
     const parentPath = findParentByScopeType(paths[0], scopeType);
-    const logicAST = shouldAddReturnStatement
-      ? t.returnStatement(generateTemplate(extractedLogic)().expression)
-      : generateTemplate(extractedLogic)();
+    const logicAST = generateTemplate(`${shouldAddReturnStatement ? 'return ' : ''}${extractedLogic}`)();
     const functionCallAST = generateTemplate(
       `${scopeType === SCOPE_TYPES.CLASS_METHOD ? 'this.' : ''}${functionName}(${functionParams.join(', ')})`
     )();
@@ -198,7 +214,7 @@ function createFunctionInParentByScopeType(parentPath, scopeType, logicAST, func
         );
     } else {
       let nodeToPushTo;
-      if (Array.isArray(parentPath.node.body)) {
+      if (parentPath.node.body && Array.isArray(parentPath.node.body)) {
         nodeToPushTo = parentPath.node.body;
       } else if (parentPath.node.body && parentPath.node.body.body && Array.isArray(parentPath.node.body.body)) {
         nodeToPushTo = parentPath.node.body.body;
@@ -220,7 +236,10 @@ function findParentByScopeType(path, scopeType) {
   if (!path) {
     return;
   }
-  if (scopeType === SCOPE_TYPES.INLINE_FUNCTION && (t.isFunction(path.parentPath) || !path.parentPath)) {
+  if (
+    scopeType === SCOPE_TYPES.INLINE_FUNCTION &&
+    ((t.isFunction(path.parentPath) && path.parentPath.node.body && path.parentPath.node.body.body) || !path.parentPath)
+  ) {
     return path.parentPath;
   }
   if (scopeType === SCOPE_TYPES.CLASS_METHOD && t.isClassDeclaration(path.node)) {
@@ -255,4 +274,21 @@ function replaceCurrentEditorContent(newSource) {
     new Range(new Position(0, 0), new Position(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)),
     newSource
   );
+}
+
+export function getScopeTypeByPath(path, scopeTypes = new Set([SCOPE_TYPES.GLOBAL_FUNCTION])) {
+  if (!path.parentPath) {
+    return scopeTypes;
+  }
+  if (
+    (t.isFunction(path.parentPath) && path.parentPath.node.body && path.parentPath.node.body.body) ||
+    !path.parentPath
+  ) {
+    scopeTypes.add(SCOPE_TYPES.INLINE_FUNCTION);
+  }
+  if (t.isClassDeclaration(path.node)) {
+    scopeTypes.add(SCOPE_TYPES.CLASS_METHOD);
+  }
+
+  return getScopeTypeByPath(path.parentPath, scopeTypes);
 }
