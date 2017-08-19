@@ -2,7 +2,7 @@
 
 Adds support for "extract to method" to VSCode.
 
-![Example Image](http://g.recordit.co/txrCfhWVug.gif)
+![Example Image](https://file-zvwanozdyl.now.sh/extract.gif)
 
 ## Features
 
