@@ -1,4 +1,15 @@
-import { window, ExtensionContext, commands, Range, TextEdit, workspace, WorkspaceEdit, Position } from 'vscode';
+import {
+  window,
+  ExtensionContext,
+  commands,
+  Range,
+  TextEdit,
+  workspace,
+  WorkspaceEdit,
+  Position,
+  languages,
+  TextEditorSelectionChangeEvent
+} from 'vscode';
 import {
   getUnboundVariables,
   extractMethod,
@@ -9,45 +20,54 @@ import {
   getAST,
   getScopeTypeByPath
 } from './parser';
+import ExtractionProvider from './extractionProvider';
 
 export function activate(context: ExtensionContext) {
-  const disposable = commands.registerCommand('extension.extractMethod', async () => {
-    try {
-      // modify range if need to trim
-      const selectedText = getSelectedText();
-      const { start, end } = normalizeSelectedTextLocation(
-        window.activeTextEditor.selection.start,
-        window.activeTextEditor.selection.end,
-        selectedText
-      );
-      const sourceAST = getAST(window.activeTextEditor.document.getText());
-      const subNodes = findSubNodeByLocation(sourceAST, start, end);
-      const functionParams = getUnboundVariables(selectedText);
-      const scopeType = await getScopeType(subNodes[0]);
-      if (!scopeType) {
-        return;
-      }
-      const functionName = await getFunctionName();
-      if (!functionName) {
-        return;
-      }
-      const { shouldAddReturnStatement, paramTypes } = getInformationOnSubNode(subNodes, sourceAST, functionParams);
-
-      const newSource = extractMethod(
-        sourceAST,
-        selectedText,
-        start,
-        end,
-        functionName,
-        functionParams,
-        scopeType,
-        shouldAddReturnStatement,
-        paramTypes
-      );
-    } catch (e) {
-      window.showWarningMessage('Selected block should represent set of statements or an expression');
-    }
+  const extractionProvider = new ExtractionProvider();
+  languages.registerCodeActionsProvider(['typescript', 'javascript'], extractionProvider);
+  window.onDidChangeTextEditorSelection((e: TextEditorSelectionChangeEvent) => {
+    extractionProvider.setSelectedRange(new Range(e.selections[0].start, e.selections[0].end));
   });
+  const disposable = commands.registerCommand(
+    'extension.extractMethod',
+    async (subNodes, selectedText, sourceAST, functionParams, start, end, scopeType) => {
+      try {
+        // modify range if need to trim
+        // const selectedText = getSelectedText();
+        // const { start, end } = normalizeSelectedTextLocation(
+        //   window.activeTextEditor.selection.start,
+        //   window.activeTextEditor.selection.end,
+        //   selectedText
+        // );
+        // const sourceAST = getAST(window.activeTextEditor.document.getText());
+        // const subNodes = findSubNodeByLocation(sourceAST, start, end);
+        // const functionParams = getUnboundVariables(selectedText);
+        // const scopeType = await getScopeType(subNodes[0]);
+        // if (!scopeType) {
+        //   return;
+        // }
+        const functionName = await getFunctionName();
+        if (!functionName) {
+          return;
+        }
+        const { shouldAddReturnStatement, paramTypes } = getInformationOnSubNode(subNodes, sourceAST, functionParams);
+
+        const newSource = extractMethod(
+          sourceAST,
+          selectedText,
+          start,
+          end,
+          functionName,
+          functionParams,
+          scopeType,
+          shouldAddReturnStatement,
+          paramTypes
+        );
+      } catch (e) {
+        window.showWarningMessage('Selected block should represent set of statements or an expression');
+      }
+    }
+  );
 
   context.subscriptions.push(disposable);
 }
