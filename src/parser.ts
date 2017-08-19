@@ -152,7 +152,8 @@ export function getUnboundVariables(source) {
         !root.scope.bindings[path.node.name] &&
         !t.isMemberExpression(path.parent) &&
         !t.isObjectProperty(path.parent) &&
-        !t.isLabeledStatement(path.parent)
+        !t.isLabeledStatement(path.parent) &&
+        !t.isVariableDeclarator(path.parent)
       ) {
         identifiers[path.node.name] = true;
       }
