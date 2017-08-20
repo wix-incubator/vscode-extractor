@@ -2,7 +2,7 @@
   "name": "extractor",
   "displayName": "extractor",
   "description": "Extracts methods/functions",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "wix",
   "engines": {
     "vscode": "^1.12.0"
@@ -39,5 +39,15 @@
     "babel-template": "*",
     "babel-types": "*",
     "babylon": "^7.0.0-beta.19"
+  },
+  "icon": "images/extractor-image.png",
+  "galleryBanner": {
+    "color": "#1C78C0",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/wix/vscode-extractor/blob/master/README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wix/vscode-extractor.git"
   }
 }
