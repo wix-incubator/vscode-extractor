@@ -26,6 +26,10 @@ Select some text and press `cmd+.`
 ## Unknown Issues
 - Quite a bit (probably)
 
+### 0.2.0
+
+Load Typescript/Flow by file type
+
 ### 0.1.0
 
 Initial Release

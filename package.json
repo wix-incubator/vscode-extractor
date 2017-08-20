@@ -2,7 +2,7 @@
   "name": "extractor",
   "displayName": "extractor",
   "description": "Extracts methods/functions",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "wix",
   "engines": {
     "vscode": "^1.12.0"

@@ -10,9 +10,7 @@ export const SCOPE_TYPES = {
   GLOBAL_FUNCTION: 'Global Function'
 };
 const PARSE_PLUGINS = [
-  // 'typescript',
   'jsx',
-  'flow',
   'asyncFunctions',
   'classConstructorCall',
   'doExpressions',
@@ -26,10 +24,18 @@ const PARSE_PLUGINS = [
   'functionBind',
   'functionSent'
 ];
+function getPlugins() {
+  if (/typescript/.test(window.activeTextEditor.document.languageId)) {
+    console.log('using typescript');
+    return [...PARSE_PLUGINS, 'typescript'];
+  }
+  console.log('using flow');
+  return [...PARSE_PLUGINS, 'flow'];
+}
 export function getAST(source) {
   return parse(source, {
     sourceType: 'module',
-    plugins: PARSE_PLUGINS
+    plugins: getPlugins()
   });
 }
 export function getInformationOnSubNode(subNodes, sourceAST, functionParams) {
@@ -172,7 +178,7 @@ export function getUnboundVariables(source) {
   };
   const ast = parse(source, {
     sourceType: 'module',
-    plugins: PARSE_PLUGINS
+    plugins: getPlugins()
   });
   traverse(ast, visitor);
   return Object.keys(identifiers);
@@ -180,7 +186,7 @@ export function getUnboundVariables(source) {
 
 function generateTemplate(code) {
   return template(code, {
-    plugins: PARSE_PLUGINS
+    plugins: getPlugins()
   });
 }
 

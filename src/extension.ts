@@ -1,25 +1,5 @@
-import {
-  window,
-  ExtensionContext,
-  commands,
-  Range,
-  TextEdit,
-  workspace,
-  WorkspaceEdit,
-  Position,
-  languages,
-  TextEditorSelectionChangeEvent
-} from 'vscode';
-import {
-  getUnboundVariables,
-  extractMethod,
-  getInformationOnSubNode,
-  normalizeSelectedTextLocation,
-  SCOPE_TYPES,
-  findSubNodeByLocation,
-  getAST,
-  getScopeTypeByPath
-} from './parser';
+import { window, ExtensionContext, commands, Range, languages, TextEditorSelectionChangeEvent } from 'vscode';
+import { extractMethod, getInformationOnSubNode, getScopeTypeByPath } from './parser';
 import ExtractionProvider from './extractionProvider';
 
 export function activate(context: ExtensionContext) {
