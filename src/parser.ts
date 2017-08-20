@@ -10,7 +10,6 @@ export const SCOPE_TYPES = {
   GLOBAL_FUNCTION: 'Global Function'
 };
 const PARSE_PLUGINS = [
-  'jsx',
   'asyncFunctions',
   'classConstructorCall',
   'doExpressions',
@@ -28,7 +27,7 @@ function getPlugins() {
   if (/typescript/.test(window.activeTextEditor.document.languageId)) {
     return [...PARSE_PLUGINS, 'typescript'];
   }
-  return [...PARSE_PLUGINS, 'flow'];
+  return [...PARSE_PLUGINS, 'flow', 'jsx'];
 }
 export function getAST(source) {
   return parse(source, {
