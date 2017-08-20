@@ -26,10 +26,8 @@ const PARSE_PLUGINS = [
 ];
 function getPlugins() {
   if (/typescript/.test(window.activeTextEditor.document.languageId)) {
-    console.log('using typescript');
     return [...PARSE_PLUGINS, 'typescript'];
   }
-  console.log('using flow');
   return [...PARSE_PLUGINS, 'flow'];
 }
 export function getAST(source) {
