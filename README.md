@@ -2,6 +2,8 @@
 
 Adds support for "extract to method" to VSCode.
 
+## NOTE: You should probably use the internal extract to function feature of VSCode
+
 ![Example Image](https://file-zvwanozdyl.now.sh/extract.gif)
 
 ## NOTE: This extension is in a WIP state
@@ -20,11 +22,14 @@ Select some text and press `cmd+.`
 
 ## Known Issues
 
-- Typescript breaks on extraction of code with types. Waiting for babel to separate Flow from the core package in order to support Typescript better.
 - Doesnt support extracting commands with the `await` keyword
 
 ## Unknown Issues
 - Quite a bit (probably)
+
+### 0.3.0
+
+Fix Typescript issue by upgrading to babel-template 7
 
 ### 0.2.0
 

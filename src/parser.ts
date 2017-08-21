@@ -1,7 +1,7 @@
 import { traverse } from 'babel-core';
 import * as t from 'babel-types';
 import { parse } from 'babylon';
-import * as template from 'babel-template';
+import template from 'babel-template';
 import generate from 'babel-generator';
 import { TextEdit, window, workspace, Range, Position, WorkspaceEdit } from 'vscode';
 export const SCOPE_TYPES = {
@@ -30,10 +30,14 @@ function getPlugins() {
   return [...PARSE_PLUGINS, 'flow', 'jsx'];
 }
 export function getAST(source) {
-  return parse(source, {
-    sourceType: 'module',
-    plugins: getPlugins()
-  });
+  try {
+    return parse(source, {
+      sourceType: 'module',
+      plugins: getPlugins()
+    });
+  } catch (e) {
+    console.log(e);
+  }
 }
 export function getInformationOnSubNode(subNodes, sourceAST, functionParams) {
   return {
